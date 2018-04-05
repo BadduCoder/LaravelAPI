@@ -32,52 +32,75 @@ class NodeController extends Controller
                 $bname = $request->input('bname');
                 $wname = $request->input('wname');
 
-                //If Boss Exists and Worker needs to be assigned to him, it's not possible
-                if(Boss::where('bname',$bname)->exists() && !Workers::where('wname',$wname)->exists())
-                      return response()->json(['error'=>'Not Possible!']);
-
-                //Checking Whether Boss Already Exits
+//----------------------->If Boss Exists and Worker needs to be assigned to him, it's not possible
                 if(Boss::where('bname',$bname)->exists())
                 {
-                      $newboss = $bname ;
+                    if(Workers::where('wname',$wname)->exists())
+                    {
+                      $work = $wname;
+                      $count = 0;
                       while(true)
                       {
-                            if(Boss::where('bname',$newboss)->exists())
-                            {
-                              if(Boss::where('bname',$newboss)->get()[0]->worker->wname == $wname )
-                                  return response()->json(['success'=>'Already Exists!']);
-                            }
-                            if(Boss::where('bname',$newboss)->exists())
-                                $newboss = Boss::where('bname',$newboss)->get()[0]->worker->wname;
-                            else
-                                break;
-                      }
-                      if(Workers::where('wname',$wname)->exists() || Boss::where('bname',$wname)->exists())
-                            return response()->json(['error'=>'Not Possible!']);
-                }
+                          if(Workers::where('wname',$work)->exists())
+                          {
+                              $work = Workers::where('wname',$work)->get()[0]->boss->bname;
+                              $count++;
+                              if($work == $bname)
+                              {
+                                  $returns = 'Relation Already exists! Levels between existing relations :';
+                                  $returns .= (string)$count;
+                                  return response()->json(['success'=>$returns]);
+                              }
+                          }
+                          else {
+                              $returne = 'Not Possible because ';
+                              return response()->json(['error'=>$returne]);
+                          }
 
-                //Checking Whether new Worker is Someone's Boss
+                      }
+                    }
+                    else
+                    {
+                        $return = 'Not Possible because ';
+                        $return .= $bname;
+                        $return .= ' is already boss of ';
+                        $return .= (string)Boss::where('bname',$bname)->get()[0]->worker->wname;
+                        return response()->json(['error'=>$return]);
+                    }
+                }
+                //If the worker already has a boss
+                $ww = $wname;
                 if(Workers::where('wname',$wname)->exists())
                 {
-                      $neww = $wname ;
-                      while(true)
-                      {
-                            if(Workers::where('wname',$neww)->exists())
-                              if(Workers::where('wname',$neww)->get()[0]->boss->bname == $wname )
-                                  return response()->json(['error'=>'Not Possible!']);
-                            if(Workers::where('wname',$neww)->exists())
-                                $neww = Workers::where('wname',$neww)->get()[0]->boss->bname;
-                            else
-                                break;
-                      }
-                      if(Workers::where('wname',$wname)->exists() || Boss::where('bname',$bname)->exists())
-                            return response()->json(['error'=>'Not Possible!']);
+                    $count =0;
+                    $returne = 'Not Possible because ';
+                    $returne .= $wname;
+                    $returne .= ' already has boss who are: ';
+                    while(true)
+                    {
+                        if(Workers::where('wname',$ww)->exists())
+                        {
+                          $count++;
+                          $ww = Workers::where('wname',$ww)->get()[0]->boss->bname;
+                          $returne .= (string)$ww;
+                          $returne .= ",";
+                          if($ww == $bname)
+                          {
+                              $returns = 'Relation Already exists!';
+                              $returns .= (string)$count;
+                              return response()->json(['success'=>$returns]);
+                          }
+                        }
+                        else
+                        {
+                            $returne = substr($returne, 0 , -5);
+                            $returne .= " try making ".$bname." boss of ".Boss::where('bname','TOP')->get()[0]->worker->wname;
+                            return response()->json(['error'=>$returne]);
+                        }
+
+                    }
+
                 }
-
-                //If Boss is Worker and Worker is Boss after above filtering
-                if(Workers::where('wname',$bname)->exists() && Boss::where('bname',$wname)->exists())
-                    return response()->json(['error'=>'Not Possible!']);
-
                 //Now no boss exist just adding
                 $BObj = new Boss;
                 $BObj->bname = $bname;
@@ -87,8 +110,43 @@ class NodeController extends Controller
                 $WObj->wname = $wname;
                 $WObj->boss_id = $id;
                 $WObj->save();
-
-                return response()->json(['success'=>'Successfully Created Entries!']);
+                $extra = ' Successfully Created Entries!';
+                if($superboss=Boss::where('bname','TOP')->exists())
+                  return $this->show($extra);
+                else
+                  return response()->json(['success'=>$extra]);
             }
+
+      }
+
+      public function show($extra = '')
+      {
+        if($superboss=Boss::where('bname','TOP')->exists())
+        {
+          $superboss=Boss::where('bname','TOP')->get()[0]->bname;
+          if(isset($extra))
+          $final = $extra;
+          $final .= "Now the Hierarchy is : ";
+          $final .= (string)$superboss;
+          $i = 0;
+          while(true)
+          {
+              if(Boss::where('bname',$superboss)->exists())
+              {
+                $superboss = Boss::where('bname',$superboss)->get()[0]->worker->wname;
+                $final.="->";
+                $final.=(string)$superboss;
+                $i++;
+              }
+              else {
+                break;
+              }
+
+          }
+          return response()->json(['success'=>$final]);
+        }
+        else {
+          return response()->json(['error'=>'Please define SuperBoss using TOP!']);
+        }
       }
 }
